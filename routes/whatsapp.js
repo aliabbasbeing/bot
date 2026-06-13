@@ -24,6 +24,7 @@ router.post('/connect', async (req, res) => {
 
 router.get('/status', (req, res) => {
     const st = whatsappService.getStatus();
+    logger.info(`GET /api/whatsapp/status → ${st}`);
     res.json({ status: st });
 });
 
