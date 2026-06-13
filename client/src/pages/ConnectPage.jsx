@@ -36,13 +36,23 @@ export default function ConnectPage() {
             if (s === 'connected') setQr(null);
         });
 
-        api.get('/whatsapp/status').then((res) => {
+        api.get('/whatsapp/status').then(async (res) => {
             const s = res.data.status;
             addDebug(`Server status: ${s}`);
             setStatus(s);
+            if (s === 'disconnected') {
+                addDebug('Auto-connecting WhatsApp...');
+                try {
+                    const r = await api.post('/whatsapp/connect');
+                    addDebug(`Auto-connect: ${r.data.message}`);
+                } catch (err) {
+                    addDebug(`Auto-connect error: ${err.message}`);
+                }
+            }
         }).catch((err) => {
             addDebug(`Status error: ${err.message}`);
             setStatus('disconnected');
+            api.post('/whatsapp/connect').catch(e => addDebug(`Auto-connect error: ${e.message}`));
         });
 
         return () => {
