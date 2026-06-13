@@ -28,7 +28,11 @@ function parseCSV(filePath) {
         const phone = normalizePhone(phoneRaw);
 
         if (!phone) {
-            invalid.push(phoneRaw);
+            const trimmed = phoneRaw.trim();
+            const reason = /^[\d.]+[eE][+-]?\d+$/.test(trimmed.replace(/[\s\-\(\)\+]/g, ''))
+                ? `${trimmed} — Excel scientific notation, re-export with column formatted as Text`
+                : trimmed || '(empty)';
+            invalid.push(reason);
             continue;
         }
 
