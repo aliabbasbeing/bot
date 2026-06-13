@@ -1,26 +1,13 @@
 function normalizePhone(raw) {
     if (!raw || typeof raw !== 'string') return null;
 
-    let cleaned = raw.trim();
+    let cleaned = raw.replace(/[\s\-\(\)\+]/g, '');
 
-    const stripped = cleaned.replace(/[\s\-\(\)\+]/g, '');
-    if (/^[\d.]+[eE][+-]?\d+$/.test(stripped)) {
+    if (/^[\d.]+[eE][+-]?\d+$/.test(cleaned)) {
         return null;
     }
 
-    cleaned = cleaned.replace(/[^\d]/g, '');
-
-    if (cleaned.startsWith('00')) {
-        cleaned = cleaned.replace(/^00+/, '');
-    }
-
-    if (cleaned.startsWith('0')) {
-        cleaned = '92' + cleaned.slice(1);
-    }
-
-    if (cleaned.length < 11) {
-        cleaned = '92' + cleaned;
-    }
+    cleaned = cleaned.replace(/^\+/, '').replace(/[\s\-\(\)]/g, '');
 
     if (!/^\d+$/.test(cleaned)) return null;
 
