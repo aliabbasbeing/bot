@@ -10,6 +10,7 @@ const config = {
     logPath: path.resolve(process.env.LOG_PATH || './logs'),
     uploadPath: path.resolve(process.env.UPLOAD_PATH || './uploads'),
     waHeadless: process.env.WA_HEADLESS !== 'false',
+    chromePath: process.env.CHROME_PATH || '',
     defaultDelay: parseInt(process.env.DEFAULT_DELAY, 10) || 8,
 };
 

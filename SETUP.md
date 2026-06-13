@@ -1,77 +1,87 @@
 # VPS Setup Guide — Ubuntu
 
-Step-by-step instructions to deploy this app on an Ubuntu server from a fresh clone.
+Full procedure from GitHub push to running server.
 
 ---
 
-## 1. Prerequisites
+## Part 1: Push Code to GitHub
+
+Run on your local machine:
+
+```bash
+cd /path/to/project
+git add -A
+git commit -m "your message"
+git push origin master
+```
+
+---
+
+## Part 2: Deploy on Fresh Ubuntu VPS
+
+### 1. System Packages
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y curl git
-```
+sudo apt install -y curl git chromium-browser
 
-## 2. Install Node.js 22
-
-```bash
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt install -y nodejs
-node -v   # v22.x
-npm -v
-```
-
-## 3. Install Puppeteer / Chromium Dependencies
-
-```bash
+# Chromium snap dependencies
 sudo apt install -y \
     ca-certificates fonts-liberation \
     libasound2 libatk-bridge2.0-0 libatk1.0-0 libcups2 \
     libdrm2 libgbm1 libgtk-3-0 libnspr4 libnss3 \
     libu2f-udev libvulkan1 libxcomposite1 libxdamage1 \
-    libxfixes3 libxkbcommon0 libxrandr2 xdg-utils \
-    chromium-browser
+    libxfixes3 libxkbcommon0 libxrandr2 xdg-utils
 ```
 
-## 4. Clone the Repository
+### 2. Node.js 22
 
 ```bash
-git clone git@github.com:aliabbasbeing/bot.git /opt/whatsapp-bot
-cd /opt/whatsapp-bot
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+node -v   # should be v22.x
+npm -v
 ```
 
-Or via HTTPS (no SSH key required):
+### 3. Clone Repository
 
 ```bash
 git clone https://github.com/aliabbasbeing/bot.git /opt/whatsapp-bot
 cd /opt/whatsapp-bot
 ```
 
-## 5. Create Environment File
+### 4. Environment File
 
 ```bash
 cp .env.example .env
-nano .env
+# Generate a strong API key:
+sed -i "s/change_this_to_a_long_random_string_min_32_chars/$(openssl rand -hex 32)/" .env
+# Point to system Chromium:
+echo "CHROME_PATH=/snap/bin/chromium" >> .env
 ```
 
-Edit these values:
+Verify `.env` contents:
 
-| Variable | Example | Description |
-|---|---|---|
-| `PORT` | `4000` | Server port |
-| `NODE_ENV` | `production` | |
-| `API_KEY` | `$(openssl rand -hex 32)` | Generate: `openssl rand -hex 32` |
-| `WA_HEADLESS` | `true` | Always `true` on VPS |
+```bash
+cat .env
+```
 
-Minimal `.env`:
+Expected:
 
 ```
 PORT=4000
 NODE_ENV=production
-API_KEY=change_this_to_a_long_random_string
+API_KEY=<random-64-char-hex>
+SESSION_PATH=./sessions
+DB_PATH=./data/db.sqlite
+LOG_PATH=./logs
+UPLOAD_PATH=./uploads
 WA_HEADLESS=true
+CHROME_PATH=/snap/bin/chromium
+DEFAULT_DELAY=8
 ```
 
-## 6. Install Dependencies
+### 5. Install Dependencies
 
 ```bash
 # Backend
@@ -83,65 +93,87 @@ npm install
 cd ..
 ```
 
-## 7. Build Frontend
+### 6. Build Frontend
 
 ```bash
 npm run build:client
 ```
 
-## 8. Create Data Directories
+### 7. Create Data Directories
 
 ```bash
 mkdir -p data logs uploads sessions
 ```
 
-## 9. Test Run
+### 8. Open Firewall
+
+```bash
+ufw allow 4000/tcp
+ufw status   # verify OpenSSH + 4000/tcp are allowed
+```
+
+### 9. Test Run
 
 ```bash
 npm start
 ```
 
-Expected output:
+Expected output (within 5 seconds):
 ```
 Server running on port 4000 in production mode
 Database initialized successfully
+No WhatsApp session found — waiting for user to connect
 ```
 
-Visit `http://your-vps-ip:4000` — you should see the login page.
+Open `http://your-vps-ip:4000` in a browser — you should see the app.
 
-> **Note**: The first WhatsApp QR scan must be done from the browser. Open port 4000 in your firewall:
-> ```bash
-> sudo ufw allow 4000/tcp
-> ```
+If the page loads but shows only JSON or blank, the frontend wasn't built. Run `npm run build:client` again.
 
-Press `Ctrl+C` to stop the test server.
+Press `Ctrl+C` to stop.
 
-## 10. Install PM2 (Process Manager)
+### 10. PM2 (Production Process Manager)
 
 ```bash
 sudo npm install -g pm2
-```
-
-## 11. Start with PM2
-
-```bash
 pm2 start ecosystem.config.js
 pm2 save
-pm2 startup   # follow the instructions to enable on-boot restart
+pm2 startup   # run the printed command to enable on-boot restart
 ```
 
-Commands:
+Useful PM2 commands:
 
 ```bash
-pm2 status              # check status
-pm2 logs wa-app         # view live logs
-pm2 restart wa-app      # restart
-pm2 stop wa-app         # stop
+pm2 status               # list processes
+pm2 logs wa-app          # live logs
+pm2 restart wa-app       # restart
+pm2 stop wa-app          # stop
+pm2 delete wa-app        # remove from PM2
 ```
 
-## 12. (Optional) Nginx Reverse Proxy
+### 11. Verify Everything
 
-Expose on port 80 with a domain name:
+```bash
+pm2 logs wa-app
+```
+
+You should see:
+```
+info: Server running on port 4000 in production mode
+info: No WhatsApp session found — waiting for user to connect
+```
+
+### 12. First WhatsApp Connection
+
+1. Open `http://your-vps-ip:4000` in a browser
+2. Go to **Connect** page
+3. Scan the QR code with your phone (WhatsApp → Linked Devices → Link a Device)
+4. Once connected, go to **Campaigns** → **Create Campaign**
+
+---
+
+## Part 3: Optional — Nginx + Domain + HTTPS
+
+### 3a. Nginx Reverse Proxy
 
 ```bash
 sudo apt install -y nginx
@@ -164,8 +196,6 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-
-        # Required for Socket.IO
         proxy_read_timeout 86400s;
         proxy_send_timeout 86400s;
     }
@@ -178,35 +208,65 @@ Enable and restart:
 sudo ln -s /etc/nginx/sites-available/whatsapp /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl restart nginx
-```
-
-Then open the firewall:
-
-```bash
 sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp   # if using HTTPS later
 ```
 
-## 13. (Optional) HTTPS with Certbot
+### 3b. HTTPS with Certbot
 
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d your-domain.com
+sudo ufw allow 443/tcp
 ```
 
-## 14. Usage — First Run
+---
 
-1. Open `http://your-vps-ip:4000` (or your domain)
-2. The app auto-checks for a WhatsApp session — if none found, go to **Connect** page
-3. Scan the QR code with your phone (WhatsApp → Linked Devices)
-4. Once connected, create a campaign and upload contacts
+## Quick Copy-Paste (All Steps)
+
+Run these in order on a fresh Ubuntu VPS:
+
+```bash
+# === 1. System ===
+apt update && apt upgrade -y
+apt install -y curl git chromium-browser
+apt install -y ca-certificates fonts-liberation libasound2 libatk-bridge2.0-0 \
+  libatk1.0-0 libcups2 libdrm2 libgbm1 libgtk-3-0 libnspr4 libnss3 \
+  libu2f-udev libvulkan1 libxcomposite1 libxdamage1 libxfixes3 \
+  libxkbcommon0 libxrandr2 xdg-utils
+
+# === 2. Node ===
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+apt install -y nodejs
+
+# === 3. App ===
+git clone https://github.com/aliabbasbeing/bot.git /opt/whatsapp-bot
+cd /opt/whatsapp-bot
+cp .env.example .env
+sed -i "s/change_this_to_a_long_random_string_min_32_chars/$(openssl rand -hex 32)/" .env
+echo "CHROME_PATH=/snap/bin/chromium" >> .env
+npm install
+cd client && npm install && cd ..
+npm run build:client
+mkdir -p data logs uploads sessions
+ufw allow 4000/tcp
+
+# === 4. PM2 ===
+npm install -g pm2
+pm2 start ecosystem.config.js
+pm2 save
+pm2 startup
+pm2 logs wa-app
+```
+
+---
 
 ## Troubleshooting
 
 | Issue | Fix |
 |---|---|
-| `Error: Failed to launch browser` | Install missing deps (step 3). Run `sudo apt install --fix-broken` |
-| `ECONNREFUSED` on port 4000 | Check `pm2 status`, restart if needed |
-| WhatsApp keeps disconnecting | Check logs: `pm2 logs wa-app`. May need to re-scan QR |
-| `EBUSY` errors on Windows only | Not applicable on Linux — file locking works properly |
-| Port 4000 not accessible | `sudo ufw allow 4000/tcp` or check cloud firewall panel |
+| `Could not find Chrome` | Ensure `CHROME_PATH=/snap/bin/chromium` is in `.env` and restart |
+| Page loads blank/JSON | Run `npm run build:client` from `/opt/whatsapp-bot` |
+| Port 4000 not accessible | `ufw allow 4000/tcp` and check cloud provider firewall panel |
+| QR never appears (stuck on "Starting WhatsApp client...") | Chromium missing deps — run `apt install` from step 1 |
+| WhatsApp disconnects | `pm2 logs wa-app` — check for `LOGOUT` or `disconnected`. Re-scan QR at `/connect` |
+| `ECONNREFUSED` | `pm2 restart wa-app` |

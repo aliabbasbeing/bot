@@ -86,19 +86,24 @@ async function init(io, forceFresh = false) {
     logger.info('Initializing WhatsApp client...');
 
     try {
+        const puppeteerOpts = {
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--single-process',
+                '--no-zygote',
+            ],
+            headless: true,
+        };
+        if (config.chromePath) {
+            puppeteerOpts.executablePath = config.chromePath;
+            logger.info(`Using custom Chrome path: ${config.chromePath}`);
+        }
         client = new Client({
             authStrategy: new LocalAuth({ dataPath: config.sessionPath }),
-            puppeteer: {
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-gpu',
-                    '--single-process',
-                    '--no-zygote',
-                ],
-                headless: true,
-            },
+            puppeteer: puppeteerOpts,
         });
     } catch (err) {
         status = 'disconnected';
