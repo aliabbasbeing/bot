@@ -3,12 +3,6 @@ function normalizePhone(raw) {
 
     let cleaned = raw.replace(/[\s\-\(\)\+]/g, '');
 
-    if (/^[\d.]+[eE][+-]?\d+$/.test(cleaned)) {
-        return null;
-    }
-
-    cleaned = cleaned.replace(/^\+/, '').replace(/[\s\-\(\)]/g, '');
-
     if (!/^\d+$/.test(cleaned)) return null;
 
     if (cleaned.length < 10 || cleaned.length > 15) return null;
