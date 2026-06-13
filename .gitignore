@@ -1,0 +1,13 @@
+node_modules/
+.env
+data/
+sessions/
+uploads/
+logs/
+client/node_modules/
+client/dist/
+*.log
+.wwebjs_cache/
+contacts.csv
+server_error.txt
+server_output.txt
